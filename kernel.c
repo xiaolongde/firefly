@@ -117,7 +117,106 @@ void uart_puts(const char* str)
 	for (size_t i = 0; str[i] != '\0'; i ++)
 		uart_putc((unsigned char)str[i]);
 }
- 
+
+#define MAX_REG_NUM	64
+#define MAX_TASK_NUM	8
+
+typedef enum {
+	ENUM_TASK_EMPTY = 0,
+	ENUM_TASK_USED,
+}ENUM_TASK_STATE;
+
+typedef enum {
+	STATUS_OK = 0,
+	STATUS_FAILED = -1	
+}ENUM_STATUS;
+
+typedef void (*fn) (void *);
+
+typedef struct tcb {
+	uint32_t regs[MAX_REG_NUM];
+	uint32_t priority;
+	uint32_t state;
+	uint32_t *sp;
+	uint32_t *bp;
+	uint32_t stack_size;
+	fn routine;
+}tcb; 
+
+
+tcb task_info[MAX_TASK_NUM];
+uint32_t current;
+
+
+tcb *get_empty_task_item(tcb *task_info)
+{
+	int i;
+
+	for (i = 0; i < MAX_TASK_NUM; i++) {
+		if (task_info[i].state == ENUM_TASK_EMPTY) {
+			return &task_info[i];
+		}
+	}
+	return NULL;
+}
+
+ENUM_STATUS create_task(fn routine, uint32_t priority, uint32_t stack_size)
+{
+	tcb *ptr = get_empty_task_item(task_info);
+	if (ptr) {
+		ptr->priority = priority;
+		ptr->stack_size = stack_size;
+		ptr->routine = routine;
+		return STATUS_OK;	
+	}
+	return STATUS_FAILED;
+}
+
+void init_task(void)
+{
+	int i, j;
+
+	for (i = 0; i < MAX_TASK_NUM; i ++) {
+		for (j = 0; j < MAX_REG_NUM; j ++) {
+			task_info[i].regs[j] = 0;		
+		}
+		task_info[i].priority = i;
+		task_info[i].routine = NULL;
+		task_info[i].state = ENUM_TASK_EMPTY;
+	}
+	current = 0;
+}
+
+int next_task(void)
+{
+	int i;
+
+	for (i = 0; i < MAX_TASK_NUM; i ++) {
+	}
+
+	return -1;
+}
+
+void task_context_save(tcb *task)
+{
+	task = NULL;
+}
+
+void task_context_switch(tcb *task)
+{
+	task = NULL;
+}
+
+void do_shedule(void)
+{
+	int next = next_task();
+
+	uart_puts("do shedule\r\n");
+	task_context_save(&task_info[current]);
+	task_context_save(&task_info[next]);
+	
+}
+
 #if defined(__cplusplus)
 extern "C" /* Use C linkage for kernel_main. */
 #endif
@@ -129,8 +228,12 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 	(void) atags;
  
 	uart_init();
+	init_task();
 	uart_puts("Hello, kernel World!\r\n");
  
-	while (1)
-		uart_putc(uart_getc());
+	while (1) {
+		do_shedule();
+	}
+		//uart_putc(uart_getc());
 }
+
