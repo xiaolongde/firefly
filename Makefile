@@ -18,7 +18,7 @@ clean:
 	rm -f *.list
 	rm -f *.img
 
-%.o : %.s
+%.o : %.S
 	$(COMPILER_PREFIX)gcc $(AS_CLFAGS) -D__ASSEMBLY__ -c -o $@ $<
 	
 %.o : %.c
@@ -31,7 +31,7 @@ init:
 
 firefly: linker.ld $(OBJS)
 	$(COMPILER_PREFIX)gcc -T linker.ld -o firefly.elf -ffreestanding -O2 -nostdlib $(OBJS) -lc -lgcc
-	$(COMPILER_PREFIX)objdump -D myos.elf > myos.list
-	$(COMPILER_PREFIX)objcopy myos.elf -O ihex myos.hex
-	$(COMPILER_PREFIX)objcopy myos.elf -O binary myos.bin
-	$(COMPILER_PREFIX)objcopy myos.elf -O binary myos.img
+	$(COMPILER_PREFIX)objdump -D firefly.elf > firefly.list
+	$(COMPILER_PREFIX)objcopy firefly.elf -O ihex firefly.hex
+	$(COMPILER_PREFIX)objcopy firefly.elf -O binary firefly.bin
+	$(COMPILER_PREFIX)objcopy firefly.elf -O binary firefly.img
