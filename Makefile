@@ -35,3 +35,8 @@ firefly: linker.ld $(OBJS)
 	$(COMPILER_PREFIX)objcopy firefly.elf -O ihex firefly.hex
 	$(COMPILER_PREFIX)objcopy firefly.elf -O binary firefly.bin
 	$(COMPILER_PREFIX)objcopy firefly.elf -O binary firefly.img
+
+qemu-gdb:
+	qemu-system-arm -m 128 -M raspi2 -s -S -nographic -kernel firefly.elf
+qemu:
+	qemu-system-arm -m 128 -M raspi2 -s -nographic -kernel firefly.elf

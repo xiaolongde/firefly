@@ -212,6 +212,7 @@ void do_shedule(void)
 	int next = next_task();
 
 	uart_puts("do shedule\r\n");
+	//sleep(1);
 	task_context_save(&task_info[current]);
 	task_context_save(&task_info[next]);
 	
