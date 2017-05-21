@@ -2,7 +2,7 @@
 COMPILER_PREFIX ?= arm-none-eabi-
 
 AS_CLFAGS ?= -mcpu=arm1176jzf-s -fpic -ffreestanding
-C_CFLAGS ?= -mcpu=arm1176jzf-s -fpic -ffreestanding -std=gnu99 -O2 -Wall -Wextra
+C_CFLAGS ?= -mcpu=arm1176jzf-s -g3 -Wextra -fpic -Wall -ffreestanding -std=gnu99 -O2 -Wall -Wextra
 LIBS ?= -L/usr/lib/arm-none-eabi/lib/ -L/usr/lib/gcc/arm-none-eabi/4.8.2/
 
 OBJS = boot.o 

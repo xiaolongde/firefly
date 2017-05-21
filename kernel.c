@@ -118,12 +118,17 @@ void uart_puts(const char* str)
 		uart_putc((unsigned char)str[i]);
 }
 
-#define MAX_REG_NUM	64
-#define MAX_TASK_NUM	8
+#define MAX_REG_NUM		64
+#define MAX_PRIORITY_LEVEL	3	
+#define MAX_TASK_NUM_PER_PRI	2
+#define MAX_TASK_NUM		(MAX_TASK_NUM_PER_PRI * MAX_PRIORITY_LEVEL)
+#define MAX_STACK_SIZE		32 * 1024
 
 typedef enum {
-	ENUM_TASK_EMPTY = 0,
-	ENUM_TASK_USED,
+	ENUM_TASK_STATE_RUN	= 100,
+	ENUM_TASK_STATE_READY,
+	ENUM_TASK_STATE_SUSPEND,
+	ENUM_TASK_STATE_WAIT
 }ENUM_TASK_STATE;
 
 typedef enum {
@@ -131,7 +136,7 @@ typedef enum {
 	STATUS_FAILED = -1	
 }ENUM_STATUS;
 
-typedef void (*fn) (void *);
+typedef void (*fn) (void);
 
 typedef struct tcb {
 	uint32_t regs[MAX_REG_NUM];
@@ -140,60 +145,37 @@ typedef struct tcb {
 	uint32_t *sp;
 	uint32_t *bp;
 	uint32_t stack_size;
+	uint32_t used;
 	fn routine;
 }tcb; 
 
 
 tcb task_info[MAX_TASK_NUM];
-uint32_t current;
+int current;
 
 
-tcb *get_empty_task_item(tcb *task_info)
+tcb *get_empty_task_item(tcb *task_info, uint32_t priority)
 {
 	int i;
 
-	for (i = 0; i < MAX_TASK_NUM; i++) {
-		if (task_info[i].state == ENUM_TASK_EMPTY) {
+	for (i = priority * MAX_TASK_NUM_PER_PRI; i < (priority + 1) * MAX_TASK_NUM_PER_PRI; i++) {
+		if (task_info[i].used == 0) {
+			task_info[i].used = 1;
 			return &task_info[i];
 		}
 	}
 	return NULL;
 }
 
-ENUM_STATUS create_task(fn routine, uint32_t priority, uint32_t stack_size)
-{
-	tcb *ptr = get_empty_task_item(task_info);
-	if (ptr) {
-		ptr->priority = priority;
-		ptr->stack_size = stack_size;
-		ptr->routine = routine;
-		return STATUS_OK;	
-	}
-	return STATUS_FAILED;
-}
-
-void init_task(void)
-{
-	int i, j;
-
-	for (i = 0; i < MAX_TASK_NUM; i ++) {
-		for (j = 0; j < MAX_REG_NUM; j ++) {
-			task_info[i].regs[j] = 0;		
-		}
-		task_info[i].priority = i;
-		task_info[i].routine = NULL;
-		task_info[i].state = ENUM_TASK_EMPTY;
-	}
-	current = 0;
-}
-
-int next_task(void)
+static int next_task(int priority)
 {
 	int i;
 
-	for (i = 0; i < MAX_TASK_NUM; i ++) {
+	for (i = priority * MAX_TASK_NUM_PER_PRI; i < MAX_TASK_NUM; i ++) {
+		if (task_info[i].used == 1 && task_info[i].state == ENUM_TASK_STATE_READY) {
+			return i;
+		}
 	}
-
 	return -1;
 }
 
@@ -207,15 +189,93 @@ void task_context_switch(tcb *task)
 	task = NULL;
 }
 
+ENUM_STATUS create_task(fn routine, uint32_t priority, uint32_t stack_size)
+{
+	tcb *ptr = NULL;
+
+	if (routine == NULL || stack_size > MAX_STACK_SIZE ||
+		priority >= MAX_PRIORITY_LEVEL)
+		return STATUS_FAILED;
+
+	ptr = get_empty_task_item(task_info, priority);
+	if (ptr) {
+		ptr->priority = priority;
+		ptr->stack_size = stack_size;
+		ptr->routine = routine;
+		ptr->state = ENUM_TASK_STATE_READY;
+		return STATUS_OK;	
+	}
+	return STATUS_FAILED;
+}
+
+void start_task(tcb *task)
+{
+	task->state = ENUM_TASK_STATE_RUN;
+	task_context_switch(task);
+	task->routine();
+}
+
+void preempt_task(tcb *old_task, tcb *new_task)
+{
+	old_task->state = ENUM_TASK_STATE_READY;
+	task_context_save(old_task);
+	task_context_switch(new_task);
+	new_task->routine();
+}
+
+void active_task(tcb *task)
+{
+	task->state = ENUM_TASK_STATE_READY;
+}
+
+void terminate_task(tcb *task)
+{
+	task->state = ENUM_TASK_STATE_SUSPEND;
+	task_context_save(task);
+}
+
+void task1(void)
+{
+	uart_puts("task1\r\n");
+	//terminate_task(&task[current]);
+}
+
+void task2(void)
+{
+	uart_puts("task2\r\n");
+	//terminate_task(&task[current]);
+}
+
+void init_task(void)
+{
+	int i, j;
+
+	for (i = 0; i < MAX_TASK_NUM; i ++) {
+		for (j = 0; j < MAX_REG_NUM; j ++) {
+			task_info[i].regs[j] = 0;
+		}
+		task_info[i].priority = 0;
+		task_info[i].routine = NULL;
+		task_info[i].state = ENUM_TASK_STATE_READY;
+	}
+	create_task(task1, 2, 1024 * 8);
+	create_task(task2, 1, 1024 * 8);
+	current = -1;
+}
+
 void do_shedule(void)
 {
-	int next = next_task();
+	int next = next_task(0);
 
-	uart_puts("do shedule\r\n");
-	//sleep(1);
-	task_context_save(&task_info[current]);
-	task_context_save(&task_info[next]);
-	
+	//uart_puts("do shedule\r\n");
+	if (current == -1) {
+		current = next;
+		start_task(&task_info[current]);
+	} else {
+		if (next != current) {
+			preempt_task(&task_info[current], &task_info[next]);
+		}
+	}
 }
 
 #if defined(__cplusplus)
@@ -229,8 +289,8 @@ void kernel_main(uint32_t r0, uint32_t r1, uint32_t atags)
 	(void) atags;
  
 	uart_init();
-	init_task();
 	uart_puts("Hello, kernel World!\r\n");
+	init_task();
  
 	while (1) {
 		do_shedule();
